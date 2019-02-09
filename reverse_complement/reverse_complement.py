@@ -10,21 +10,13 @@ def get_options():
     parser = argparse.ArgumentParser(description = 'Generate reverse complement for sequence input.')
     parser.add_argument('--output', '-o', help = 'Set output file.')
     parser.add_argument('--input', '-i', help = 'Set input file.')
-    parser.add_argument('--force', '-f', help = 'Force input of non-AGCT characters.', action = 'store_true')
-    parser.add_argument('--custom', '-c', help = 'Custom reverse complement algorithm. Default uses Biopython.')
+    parser.add_argument('--force', '-f', help = 'Force input of non-AGCT characters. (Uses Biopython)', action = 'store_true')
+    parser.add_argument('--custom', '-c', help = 'Custom reverse complement algorithm. Default uses Biopython.', action = 'store_true')
     args = parser.parse_args()
     return args
 
 def reverse(s):
     """Return the sequence string in reverse order."""
-    '''# make a list of letters from string
-    letterlist = list(s)
-    
-    # reverse the list
-    reversedlist = [letterlist[k] for k in range(len(letterlist) - 1, -1, -1)]
-    
-    # join the letters of the list into string and return
-    return ''.join(reversedlist)'''
     return s[::-1]
     
 def complement(s):
@@ -47,29 +39,48 @@ def acgt(c):
         return False
     else:
         return True
-    
+
+def get_file_input():
+    with open(args.input, 'r') as file:
+        inputstring = file.read()
+        file.close()
+
+    pattern = re.compile('[^ACGT]')
+    inputstring = inputstring.split('\n')
+    inputstring = [inputstring[x].strip() for x in range(len(inputstring))]
+    inputstring = list(filter(None, inputstring))
+    headers = []
+    strings = []
+    for x in inputstring:
+        if x[0] == '>':
+            headers.append(x)
+            strings.append('')
+        else:  
+            strings[len(headers) - 1] += x
+    if any([pattern.search(x) for x in strings]) and args.custom:
+        f = input("Invalid input. Would you like to use non-ACGT characters? (Biopython)")
+        if f in ['y', 'Y']:
+            args.custom = False
+        else:
+            exit()
+    return headers, strings
+
 def get_input():
     # check DNA letter (only ACGTacgt)
-    pattern = re.compile('^[ACGT]*$')
+    pattern = re.compile('^[ACGT]+$')
     input_validation = False
     while input_validation == False:
         # get input sequence
-        if args.input:
-            dna_seq = args.input
-        else:
-            dna_seq = input('Type your DNA sequence : ').upper() # change it to upper case
-        if pattern.search(dna_seq):
+        dna_seq = input('Type your DNA sequence : ').upper() # change it to upper case
+        if pattern.search(dna_seq) or args.force:
             input_validation = True
-        elif args.force:
-            input_validation = True
+        elif dna_seq == None:
+            input_validation = False
         else:
-            #if any(x in dna_seq for x in ['-f', '--force']):
-            if any(x in dna_seq for x in ['-F', '--FORCE']):
-                dna_seq = dna_seq.replace('-F', '')
-                dna_seq = dna_seq.replace('--FORCE', '')
-                #[dna_seq.replace(dna_seq, x, '') for x in [' -F', ' --FORCE']]
+            f = input("Invalid input. Would you like to use non-ACGT characters? (Biopython)")
+            if f in ['y', 'Y']:
+                args.custom = False
                 return dna_seq
-            print("Invalid input. If you would like to pass non ACGT characters, use -f, --force after input.")
             input_validation = False
     return dna_seq
 
@@ -78,25 +89,41 @@ def reverse_complement(dna_seq):
     # call complement function
     # print output
     if args.custom:
-        return reverse(complement(dna_seq))
+        comp = [''.join(list(map(complement, dna_seq)))]
+        rev = ''.join(list(map(reverse, comp)))
+        return rev
     else:
         seq = Seq(dna_seq)
         return seq.reverse_complement()
     # exit the program
     #exit()
 
-def output(seq):
+def output(strings):
     if args.output:
         file = open(args.output, 'w')
-        file.write(seq)
+        file.write(strings)
         file.close()
     else:
-        print(seq)
+        print(strings)
+
+def compile_output(strings, headers):
+    output = ''
+    for x in range(len(headers)):
+        output += headers[x]
+        output += '\n'
+        for y in range(len(strings[x]) // 70 + 1):
+            output += strings[x][0 + 70 * y:70 + 70 * y]
+            output += '\n'
+        output += '\n' 
+    return output
 
 if __name__ == '__main__':
-    #[print(k) for k in dir(locals)]
     args = get_options()
-    dna = get_input()
-    print(dna)
-    rc = reverse_complement(dna)
+    if args.input:
+        headers, strings = get_file_input()
+        strings = list(map(str, list(map(reverse_complement, strings))))
+        rc = compile_output(strings, headers)
+    else:
+        dna = get_input()
+        rc = str(reverse_complement(dna))
     output(rc)
